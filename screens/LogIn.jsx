@@ -1,100 +1,123 @@
-import React from 'react';
-import styled from 'styled-components/native';
-import { View, Text, TextInput, TouchableOpacity, Alert, StyleSheet } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import { auth } from '../firebase/firebaseConfig';
+import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 
-const LoginView = styled.View`
-    flex: 1;
-    justifyContent: center;
-    alignItems: center;
-    backgroundColor: #f5f5f5;
-`;
+export default function LoginScreen({ navigation }) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(true);
 
-const LoginTitle = styled.Text`
-    font-size: 24;
-    font-weight: 700;
-    margin-bottom: 20;
-`;
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        navigation.replace('MainTabs');
+      } else {
+        setLoading(false);
+      }
+    });
+    return unsubscribe;
+  }, []);
 
-const LoginInput = styled.TextInput`
-    width: 80%;
-    margin-bottom: 10;
-    border-width: 1;
-    border-style: solid;
-    border-color: #ccc;
-    border-radius: 5px;
-    background-color: #fff;
-`;
+  const handleLogin = async () => {
+    if (!email || !password) return Alert.alert('Error', 'Enter email and login');
 
-const LoginError = styled.Text`
-    color: red;
-    margin-bottom: 10;
-`;
-
-const LoginButtonText = styled.Text`
-    color: white;
-    font-size: 18;
-    font-weight: bold;
-`;
-
-export default function LoginScreen ({navigation}) {
-  const [email, setEmail] = React.useState('');
-  const [password, setPassword] = React.useState('');
-  const [error, setError] = React.useState('');
-
-  const validateEmail = (email) => {
-    const re = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-    return re.test(email);
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      navigation.replace('MainTabs');
+    } catch (err) {
+      Alert.alert('Error', err.message);
+    }
   };
 
-  const handleLogin = () => {
-    if (!email || !password) {
-      setError('enter something');
-      return;
+  const handleRegister = async () => {
+    if (!email || !password) return Alert.alert('Error', 'Enter email and login');
+
+    try {
+      await createUserWithEmailAndPassword(auth, email, password);
+      navigation.replace('MainTabs');
+    } catch (err) {
+      Alert.alert('Error', err.message);
     }
-    if (!validateEmail(email)) {
-      setError('enter valid email');
-      return;
-    }
-    if (password.length < 6) {
-      setError('short password');
-      return;
-    }
-    setError('');
-    Alert.alert('Успішний вхід', `Вітаємо, ${email}!`, [
-        { text: 'OK', onPress: () => navigation.navigate('MainTabs') }
-    ]);
   };
+
+  if (loading) {
+    return (
+      <View style={styles.loading}>
+        <ActivityIndicator size="large" color="#007bff" />
+      </View>
+    );
+  }
 
   return (
-    <LoginView>
-      <LoginTitle>login</LoginTitle>
-      <LoginInput
+    <View style={styles.container}>
+      <Text style={styles.title}>TimeTracker</Text>
+      <TextInput
         placeholder="Email"
-        keyboardType="email-address"
         value={email}
         onChangeText={setEmail}
+        style={styles.input}
+        keyboardType="email-address"
+        autoCapitalize="none"
       />
-      <LoginInput
-        placeholder="password"
-        secureTextEntry
+      <TextInput
+        placeholder="Password"
         value={password}
         onChangeText={setPassword}
+        style={styles.input}
+        secureTextEntry
       />
-      {error ? <LoginError>{error}</LoginError> : null}
+
       <TouchableOpacity style={styles.button} onPress={handleLogin}>
-        <LoginButtonText>enter</LoginButtonText>
+        <Text style={styles.buttonText}>Login</Text>
       </TouchableOpacity>
-    </LoginView>
+
+      <TouchableOpacity onPress={handleRegister}>
+        <Text style={styles.link}>Register now</Text>
+      </TouchableOpacity>
+    </View>
   );
-};
+}
 
 const styles = StyleSheet.create({
+  loading: {
+    flex: 1, justifyContent: 'center', alignItems: 'center',
+  },
+  container: {
+    flex: 1,
+    padding: 20,
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: '700',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 6,
+    padding: 12,
+    marginBottom: 15,
+    fontSize: 16,
+  },
   button: {
     backgroundColor: '#007bff',
-    padding: 10,
-    borderRadius: 5,
-    width: '80%',
+    padding: 14,
+    borderRadius: 6,
     alignItems: 'center',
-  }
+    marginBottom: 10,
+  },
+  buttonText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 16,
+  },
+  link: {
+    textAlign: 'center',
+    color: '#007bff',
+    marginTop: 10,
+  },
 });
-

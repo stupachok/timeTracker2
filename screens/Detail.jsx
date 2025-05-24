@@ -1,7 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components/native';
-import { View, Animated, Easing, Text} from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { View, Animated, Easing, Text } from 'react-native';
+import { format } from 'date-fns';
+import Loading from '../components/Loading';
+import { auth, db } from '../firebase/firebaseConfig';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 
 const DetailView = styled.View`
   flex: 1;
@@ -42,6 +45,7 @@ export default function DetailsScreen({ route }) {
   const [trackedTime, setTrackedTime] = useState(0);
   const intervalRef = useRef(null);
   const spinValue = useRef(new Animated.Value(0)).current;
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (note?.status?.toLowerCase() === 'in progress') {
@@ -72,32 +76,30 @@ export default function DetailsScreen({ route }) {
 
   const loadNote = async () => {
     try {
-      const data = await AsyncStorage.getItem('@notes');
-      if (data) {
-        const notes = JSON.parse(data);
-        const current = notes.find((n) => n.id === noteId);
-        if (current) {
-          setNote(current);
-          setTrackedTime(current.trackedTime || 0);
-        }
+      const user = auth.currentUser;
+      if (!user) return;
+      const ref = doc(db, 'users', user.uid, 'tasks', noteId);
+      const snap = await getDoc(ref);
+      if (snap.exists()) {
+        const data = snap.data();
+        setNote({ id: snap.id, ...data });
+        setTrackedTime(data.trackedTime || 0);
       }
     } catch (err) {
-      console.error('Не вдалося завантажити нотатку', err);
+      console.error('Cannot load task', err);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const saveUpdatedNote = async (updated) => {
+  const saveTrackedTime = async (updatedTime) => {
     try {
-      const data = await AsyncStorage.getItem('@notes');
-      if (data) {
-        const notes = JSON.parse(data);
-        const updatedNotes = notes.map((n) =>
-          n.id === updated.id ? updated : n
-        );
-        await AsyncStorage.setItem('@notes', JSON.stringify(updatedNotes));
-      }
+      const user = auth.currentUser;
+      if (!user) return;
+      const ref = doc(db, 'users', user.uid, 'tasks', noteId);
+      await updateDoc(ref, { trackedTime: updatedTime });
     } catch (err) {
-      console.error('Не вдалося зберегти нотатку', err);
+      console.error('Cannot save time', err);
     }
   };
 
@@ -116,51 +118,43 @@ export default function DetailsScreen({ route }) {
 
   useEffect(() => {
     if (note) {
-      const updated = { ...note, trackedTime };
-      setNote(updated);
-      saveUpdatedNote(updated);
+      saveTrackedTime(trackedTime);
     }
   }, [trackedTime]);
 
-  if (!note) {
-    return (
-      <DetailView>
-        <DetailTitle>Завантаження...</DetailTitle>
-      </DetailView>
-    );
-  }
+  if (loading || !note) return <Loading />;
 
   return (
     <DetailView>
-      <DetailTitle>Деталі нотатки</DetailTitle>
+      <DetailTitle>Details</DetailTitle>
       <DetailNoteView>
-        <FieldLabel>Заголовок</FieldLabel>
+        <FieldLabel>Title</FieldLabel>
         <FieldValue>{note.title}</FieldValue>
 
-        <FieldLabel>Опис</FieldLabel>
+        <FieldLabel>Description</FieldLabel>
         <FieldValue>{note.description || '—'}</FieldValue>
 
-        <FieldLabel>Оцінений час</FieldLabel>
+        <FieldLabel>Estimated time</FieldLabel>
         <FieldValue>{note.estimatedTime || '—'} год.</FieldValue>
 
-        <FieldLabel>Пріоритет</FieldLabel>
+        <FieldLabel>Priority</FieldLabel>
         <FieldValue>{note.priority || '—'}</FieldValue>
 
-        <FieldLabel>Статус</FieldLabel>
+        <FieldLabel>Status</FieldLabel>
         <FieldValue>{note.status || '—'}</FieldValue>
 
-        <FieldLabel>Час у роботі</FieldLabel>
+        <FieldLabel>Tracked time</FieldLabel>
         <FieldValue>{formatTime(trackedTime)}</FieldValue>
-        <View style={{ alignItems: 'center', marginBottom: 10 }}>
-  {note.status?.toLowerCase() === 'in progress' ? (
-    <Animated.Text style={{ fontSize: 28, transform: [{ rotate: spin }] }}>
-      ⏱️
-    </Animated.Text>
-  ) : (
-    <Text style={{ fontSize: 28, color: '#999' }}>⏱️</Text>
-  )}
-</View>
 
+        <View style={{ alignItems: 'center', marginBottom: 10 }}>
+          {note.status?.toLowerCase() === 'in progress' ? (
+            <Animated.Text style={{ fontSize: 28, transform: [{ rotate: spin }] }}>
+              ⏱️
+            </Animated.Text>
+          ) : (
+            <Text style={{ fontSize: 28, color: '#999' }}>⏱️</Text>
+          )}
+        </View>
       </DetailNoteView>
     </DetailView>
   );

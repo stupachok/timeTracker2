@@ -16,7 +16,6 @@ const Tab = createBottomTabNavigator();
 const MainTabs = () => (
   <Tab.Navigator
     screenOptions={({ route }) => ({
-      headerShown: false,
       tabBarIcon: ({ color, size }) => {
         let icon = route.name === 'Home' ? 'home' : 'bar-chart';
         return <Ionicons name={icon} size={size} color={color} />;
@@ -25,8 +24,19 @@ const MainTabs = () => (
       tabBarInactiveTintColor: 'gray',
     })}
   >
-    <Tab.Screen name="Home" component={HomeScreen} options={{ title: 'Завдання' }} />
-    <Tab.Screen name="Progress" component={ProgressScreen} options={{ title: 'Прогрес' }} />
+    <Tab.Screen
+      name="Home"
+      component={HomeScreen}
+      options={{
+        title: 'Tasks',
+        headerShown: true,
+      }}
+    />
+    <Tab.Screen
+      name="Progress"
+      component={ProgressScreen}
+      options={{ title: 'Progress', headerShown: false }}
+    />
   </Tab.Navigator>
 );
 
@@ -35,10 +45,10 @@ export const Navigation = () => {
     <NavigationIndependentTree>
         <NavigationContainer>
         <Stack.Navigator>
-         <Stack.Screen name="LogIn" component={LogInScreen} options={{ title: 'Логін' }} />
+         <Stack.Screen name="LogIn" component={LogInScreen} options={{ title: 'Login' }} />
             <Stack.Screen name="MainTabs" component={MainTabs} options={{ headerShown: false }} />
-            <Stack.Screen name="AddNote" component={AddNoteScreen} options={{ title: 'Нова нотатка' }} />
-            <Stack.Screen name="Details" component={DetailsScreen} options={{ title: 'Деталі' }} />
+            <Stack.Screen name="AddNote" component={AddNoteScreen} options={{ title: 'New task' }} />
+            <Stack.Screen name="Details" component={DetailsScreen} options={{ title: 'Details' }} />
         </Stack.Navigator>
         </NavigationContainer>
     </NavigationIndependentTree>

@@ -1,146 +1,170 @@
-import React, {useState} from 'react';
-import {View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet} from 'react-native';
+import React, { useState } from 'react';
 import styled from 'styled-components/native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  TextInput,
+  Alert,
+} from 'react-native';
+import { format } from 'date-fns';
+import { auth, db } from '../firebase/firebaseConfig';
+import { collection, addDoc } from 'firebase/firestore';
 
 const priorities = ['Low', 'Medium', 'High'];
 
-const Container =  styled.View`
-    padding-top: 20px;
-    padding-bottom:20px;
-    padding-right: 20px;
-    padding-left: 20px;
-    background-color: #fff;
+const Container = styled.View`
+  padding: 20px;
+  background-color: #fff;
 `;
 
 const Label = styled.Text`
-    font-size: 16px;
-    margin-bottom: 5px;
-    font-weight: 600;
+  font-size: 16px;
+  margin-bottom: 5px;
+  font-weight: 600;
 `;
 
 const Input = styled.TextInput`
-    border-style: solid;
-    border-color: #ccc;
-    border-width: 1px;
-    border-radius: 5px;
-    padding-top: 10px;
-    padding-bottom: 10px;
-    padding-right: 10px;
-    padding-left: 10px;
-    font-size: 16px;
-    margin-bottom: 15px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  padding: 10px;
+  font-size: 16px;
+  margin-bottom: 15px;
 `;
 
 const PriorityContainer = styled.View`
-    flex-direction: row;
-    flex-wrap: wrap;
-    margin-bottom: 20px;
+  flex-direction: row;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
 `;
 
-const PriorityText = styled.Text`
-    color: #333;
-`;
-
-const AddButton = styled.View`
-    background-color: #28a745;
-    padding-top: 15px;
-    padding-bottom:15px;
-    padding-left: 15px;
-    padding-right: 15px;
-    align-items: center;
+const AddButton = styled.TouchableOpacity`
+  background-color: #28a745;
+  padding: 15px;
+  align-items: center;
+  border-radius: 5px;
 `;
 
 const AddButtonText = styled.Text`
-    color: #fff;
-    font-size: 15px;
-    font-weight: 600;
+  color: #fff;
+  font-size: 16px;
+  font-weight: bold;
 `;
 
-const saveNotes = async (notes) => {
-  try {
-    await AsyncStorage.setItem('@notes', JSON.stringify(notes));
-  } catch (e) {
-    console.error('Помилка при збереженні нотаток:', e);
-  }
-};
+export default function AddNoteScreen({ navigation }) {
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [estimatedTime, setEstimatedTime] = useState('');
+  const [priority, setPriority] = useState('Medium');
 
-const loadNotes = async () => {
-  try {
-    const json = await AsyncStorage.getItem('@notes');
-    return json != null ? JSON.parse(json) : [];
-  } catch (e) {
-    console.error('Помилка при завантаженні нотаток:', e);
-    return [];
-  }
-};
+  const handleAddNote = async () => {
+    if (title.trim() === '') {
+      Alert.alert('Error', 'Enter title');
+      return;
+    }
 
-export default function AddNoteScreen({navigation}) {
-    const [title, setTitle] = useState('');
-    const [description, setDescription] = useState('');
-    const [estimatedTime, setEstimatedTime] = useState('');
-    const [priority, setPriority] = useState('Medium');
-
-    const handleAddNote = async () => {
-        const newNote = {
-            id: Date.now().toString(),
-            title, description, estimatedTime, priority,
-            createdAt: new Date().toISOString(),
-          };
-
-        const existingNotes = await loadNotes();
-        const updatedNotes = [...existingNotes, newNote];
-        await saveNotes(updatedNotes);
-
-        navigation.goBack();
+    const newNote = {
+      title,
+      description,
+      estimatedTime,
+      priority,
+      status: 'To Do',
+      date: format(new Date(), 'yyyy-MM-dd'),
+      createdAt: new Date().toISOString(),
+      trackedTime: 0,
+      xpGranted: false,
     };
 
-    return (
-        <ScrollView>
-            <Container>
-                <Label>title</Label>
-                <Input placeholder='title' value={title} onChangeText={setTitle} />
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
 
-                <Label>description</Label>
-                <Input placeholder='description' value={description} onChangeText={setDescription} />
+      const ref = collection(db, 'users', user.uid, 'tasks');
+      await addDoc(ref, newNote);
 
-                <Label>estimatedTime</Label>
-                <Input placeholder='estimatedTime' keyboardType='numeric' value={estimatedTime} onChangeText={setEstimatedTime} />
+      navigation.goBack();
+    } catch (err) {
+      console.error('Error', err);
+    }
+  };
 
-                <Label>priority</Label>
-                <PriorityContainer>
-                    {priorities.map((p) => (
-                        <TouchableOpacity
-                        key={p}
-                        style={[styles.priorityButton, priority === p && styles.priorityButtonActive]}
-                        onPress={() => setPriority(p)}>
-                            <Text style={priority === p ? styles.priorityTextActive : styles.priorityText}>{p}</Text>
-                        </TouchableOpacity>
-                    ))}
-                </PriorityContainer>
+  return (
+    <ScrollView>
+      <Container>
+        <Label>Title</Label>
+        <Input
+          placeholder="Title"
+          value={title}
+          onChangeText={setTitle}
+        />
 
-                <TouchableOpacity onPress={handleAddNote}>
-                    <AddButton>
-                        <AddButtonText>add task</AddButtonText>
-                    </AddButton>
-                </TouchableOpacity>
-            </Container>
-        </ScrollView>
-    );
+        <Label>Description</Label>
+        <Input
+          placeholder="Description"
+          value={description}
+          onChangeText={setDescription}
+          multiline
+        />
+
+        <Label>Estimated time (hours)</Label>
+        <Input
+          placeholder="For example: 2"
+          keyboardType="numeric"
+          value={estimatedTime}
+          onChangeText={setEstimatedTime}
+        />
+
+        <Label>Priority</Label>
+        <PriorityContainer>
+          {priorities.map((p) => (
+            <TouchableOpacity
+              key={p}
+              style={[
+                styles.priorityButton,
+                priority === p && styles.priorityButtonActive,
+              ]}
+              onPress={() => setPriority(p)}
+            >
+              <Text
+                style={
+                  priority === p
+                    ? styles.priorityTextActive
+                    : styles.priorityText
+                }
+              >
+                {p}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </PriorityContainer>
+
+        <AddButton onPress={handleAddNote}>
+          <AddButtonText>+ Add task</AddButtonText>
+        </AddButton>
+      </Container>
+    </ScrollView>
+  );
 }
 
 const styles = StyleSheet.create({
-    priorityButton: {
-        borderWidth: 1,
-        borderColor: '#888',
-        borderRadius: 20,
-        paddingVertical: 6,
-        paddingHorizontal: 12,
-        marginRight: 10,
-        marginTop: 5,
-      },
-      priorityButtonActive: {
-        backgroundColor: '#007bff',
-        borderColor: '#007bff',
-      },
+  priorityButton: {
+    borderWidth: 1,
+    borderColor: '#888',
+    borderRadius: 20,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    marginRight: 10,
+    marginTop: 5,
+  },
+  priorityButtonActive: {
+    backgroundColor: '#007bff',
+    borderColor: '#007bff',
+  },
+  priorityText: {
+    color: '#333',
+  },
+  priorityTextActive: {
+    color: '#fff',
+  },
 });

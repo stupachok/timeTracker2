@@ -1,5 +1,4 @@
 import React, { useRef, useState } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   View,
   Text,
@@ -9,6 +8,10 @@ import {
   TouchableWithoutFeedback,
 } from 'react-native';
 import styled from 'styled-components/native';
+import { format } from 'date-fns';
+import { getXPFromPriority, updateUserXP } from './UpdateUserXp';
+import { auth, db } from '../firebase/firebaseConfig';
+import { doc, updateDoc } from 'firebase/firestore';
 
 const STATUS_OPTIONS = ['To Do', 'In Progress', 'Done', 'Pending'];
 
@@ -23,12 +26,19 @@ const NoteView = styled.View`
 
 const NoteText = styled.Text`
   font-size: 16px;
+  font-weight: bold;
+`;
+
+const InfoText = styled.Text`
+  font-size: 14px;
+  color: #555;
+  margin-top: 4px;
 `;
 
 const NoteHeader = styled.View`
   flex-direction: row;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
 `;
 
 const StatusLabel = styled.Text`
@@ -98,21 +108,26 @@ export default function Note({ note, onPress, onLongPress, selected }) {
 
   const updateNoteStatus = async (newStatus) => {
     try {
-      const data = await AsyncStorage.getItem('@notes');
-      if (!data) return;
-      const notes = JSON.parse(data);
+      const user = auth.currentUser;
+      if (!user) return;
 
-      const updatedNotes = notes.map((n) =>
-        n.id === note.id ? { ...n, status: newStatus } : n
-      );
+      const ref = doc(db, 'users', user.uid, 'tasks', note.id);
+      const updates = { status: newStatus };
 
-      await AsyncStorage.setItem('@notes', JSON.stringify(updatedNotes));
+      if (newStatus === 'Done' && !note.xpGranted) {
+        const xp = getXPFromPriority(note.priority?.toLowerCase() || 'low');
+        await updateUserXP(user.uid, xp);
+        updates.xpGranted = true;
+      }
+
+      await updateDoc(ref, updates);
     } catch (err) {
-      console.error('Failed to update note status', err);
+      console.error('❌ Failed to update note status:', err);
     }
   };
 
   const openMenu = () => {
+    if (note.status === 'Done') return;
     statusButtonRef.current?.measureInWindow((x, y, width, height) => {
       setMenuPosition({ top: y + height + 4, left: x });
       setShowMenu(true);
@@ -127,7 +142,18 @@ export default function Note({ note, onPress, onLongPress, selected }) {
     >
       <NoteView selected={selected}>
         <NoteHeader>
-          <NoteText>{note.title}</NoteText>
+          <View style={{ flex: 1 }}>
+            <NoteText>{note.title}</NoteText>
+            {note.estimatedTime && (
+              <InfoText>⏱ Estimate: {note.estimatedTime} hours.</InfoText>
+            )}
+            {note.date && (
+              <InfoText>📅 Date: {format(new Date(note.date), 'd MMM yyyy')}</InfoText>
+            )}
+            {note.priority && (
+              <InfoText>🔥 Priority: {note.priority}</InfoText>
+            )}
+          </View>
 
           <StatusView>
             <PriorityDot priority={note.priority} />
@@ -153,10 +179,7 @@ export default function Note({ note, onPress, onLongPress, selected }) {
               <View
                 style={[
                   styles.absoluteMenu,
-                  {
-                    top: menuPosition.top,
-                    left: menuPosition.left,
-                  },
+                  { top: menuPosition.top, left: menuPosition.left },
                 ]}
               >
                 <MenuView>

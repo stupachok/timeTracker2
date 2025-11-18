@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
-  apiKey: "AIzaSyA68RSor6DkYO41goxk-xkoaxTJUgzhVqA",
+  apiKey: "21212121212121212",
   authDomain: "timetrackerapp-a5a23.firebaseapp.com",
   projectId: "timetrackerapp-a5a23",
   storageBucket: "timetrackerapp-a5a23.appspot.com",
